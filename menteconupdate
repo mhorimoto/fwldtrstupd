@@ -1,0 +1,57 @@
+#! /bin/sh
+#############################################################
+# MENTECONUPDATE
+#      VER: 0.01
+#     DATE: 15th Aug. 2016
+#   AUTHOR: <horimoto#at#holly-linux.com>
+#      GIT: https://github.com/mhorimoto/fwldtrstupd.git
+#############################################################
+
+DIG="/usr/bin/dig"
+FWLD="/usr/bin/firewall-cmd"
+GREP="/usr/bin/grep"
+SED="/usr/bin/sed"
+AWK="/usr/bin/awk"
+MV="/usr/bin/mv"
+PREV="/var/spool/mentecon.idx"
+TMPF="/tmp/mentecon.$$"
+LOGF="/var/log/mentecon.log"
+ZONE="trusted"
+CURD=`/usr/bin/date "+%Y-%m-%d %H:%M:%S"`
+if [ "$2" = "" ]; then
+    VO=""
+else
+    VO="VO"
+fi
+
+if [ "$1" = "" ]; then
+    echo "You must need specify hostname by argument."
+    exit
+fi
+
+SIPA=`$DIG +short $1`
+EA=`$FWLD --query-source $SIPA --zone=$ZONE`
+if [ "$VO" = "VO" ]; then
+    echo $SIPA
+    echo $EA
+fi
+
+if [ "$EA" = "yes" ]; then
+    if [ "$VO" = "VO" ]; then
+	echo "Same Address Ignore and exit."
+    fi
+    exit
+else
+    RIPA=`$GREP ^$1 $PREV | $AWK  '{print $2}'`
+    if [ "$VO" = "VO" ]; then
+	echo "Change Address from $RIPA to $SIPA"
+    fi
+    $FWLD --quiet --permanent --remove-source $RIPA --zone=$ZONE
+    $FWLD --quiet --permanent --add-source $SIPA --zone=$ZONE
+    $FWLD --quiet --reload
+    $SED "/$1/d" $PREV > $TMPF
+    echo "$1 $SIPA" >> $TMPF
+    $MV $TMPF $PREV
+    echo "$CURD CHANGE $1 IP ADDRESS FROM $RIPA TO $SIPA" >> $LOGF
+fi
+
